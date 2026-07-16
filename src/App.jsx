@@ -507,7 +507,7 @@ export default function App() {
                   Photographie la liste de fournitures pour <b>{activeChild.name}</b> — une matière à la fois ou la
                   liste entière.
                 </p>
-                <input ref={fileInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={onPickPhoto} />
+                <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={onPickPhoto} />
               </div>
             )}
 

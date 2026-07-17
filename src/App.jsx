@@ -84,6 +84,33 @@ function matchCatalog(name) {
   return null;
 }
 
+// Construit une "signature" tolérante à partir du format + du nom :
+// les chiffres (ex. 96 pages) et quelques mots-clés de format sont gardés,
+// le reste (mise en forme, mots de liaison) est ignoré pour éviter les faux doublons.
+function formatSignature(name, format) {
+  const text = normalize(`${format} ${name}`);
+  const numbers = (text.match(/\d+/g) || []).sort().join(",");
+  const words = text
+    .replace(/\d+/g, "")
+    .replace(/\bpages?\b/g, "")
+    .replace(/\bgrand(e)?s?\b/g, "gc")
+    .replace(/\bpetit(e)?s?\b/g, "pc")
+    .replace(/\bcarreaux?\b/g, "")
+    .replace(/\bseyes?\b/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  return `${numbers}|${words}`;
+}
+
+// Clé de regroupement : utilise le nom canonique du catalogue quand l'article
+// est reconnu (ex. toutes les variantes de "cahier" tombent sur la même base),
+// combiné à la signature de format tolérante ci-dessus.
+function canonicalKey(name, format) {
+  const catalogEntry = matchCatalog(`${name} ${format}`);
+  const base = catalogEntry ? normalize(catalogEntry.label) : normalize(name);
+  return `${base}::${formatSignature(name, format)}`;
+}
+
 function fileToResizedBase64(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -269,10 +296,25 @@ export default function App() {
         quantity: Number(it.quantity) || 1,
         subject: subj || it.subject || "",
       }));
+      const targetId = activeChild ? activeChild.id : children[0].id;
       setChildren((prev) =>
-        prev.map((c) =>
-          c.id === (activeChild ? activeChild.id : children[0].id) ? { ...c, items: [...c.items, ...newItems] } : c
-        )
+        prev.map((c) => {
+          if (c.id !== targetId) return c;
+          const merged = [...c.items];
+          for (const ni of newItems) {
+            const niKey = canonicalKey(ni.name, ni.format);
+            const existing = merged.find((it) => canonicalKey(it.name, it.format) === niKey);
+            if (existing) {
+              existing.quantity += ni.quantity;
+              if (ni.subject && !existing.subject.includes(ni.subject)) {
+                existing.subject = existing.subject ? `${existing.subject}, ${ni.subject}` : ni.subject;
+              }
+            } else {
+              merged.push(ni);
+            }
+          }
+          return { ...c, items: merged };
+        })
       );
       setPendingFiles([]);
       setPendingSubject("");
@@ -315,7 +357,7 @@ export default function App() {
     const map = new Map();
     for (const it of allItemsFlat) {
       if (!it.name.trim()) continue;
-      const key = normalize(it.name) + "|" + normalize(it.format || "");
+      const key = canonicalKey(it.name, it.format || "");
       if (!map.has(key)) {
         map.set(key, {
           key,

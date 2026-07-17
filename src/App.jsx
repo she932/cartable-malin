@@ -229,7 +229,12 @@ export default function App() {
   const [autoPrices, setAutoPrices] = useState({}); // key -> [p1,p2,p3] (fetched automatically)
   const [pricesStatus, setPricesStatus] = useState("idle"); // idle | loading | done | error
   const [pricesUpdatedAt, setPricesUpdatedAt] = useState(null);
+  const [ownedKeys, setOwnedKeys] = useState({}); // key -> true si déjà à la maison
   const fileInputRef = useRef(null);
+
+  function toggleOwned(key) {
+    setOwnedKeys((prev) => ({ ...prev, [key]: !prev[key] }));
+  }
 
   const activeChild = children.find((c) => c.id === activeChildId) || children[0];
 
@@ -425,9 +430,11 @@ export default function App() {
     return catalogEntry ? [...catalogEntry.prices] : [...FALLBACK_PRICES];
   }
   const storeTotals = STORES.map((_, i) =>
-    familyGroups.reduce((sum, g) => sum + getPrices(g)[i] * g.quantity, 0)
+    familyGroups.reduce((sum, g) => sum + (ownedKeys[g.key] ? 0 : getPrices(g)[i] * g.quantity), 0)
   );
   const cheapestIdx = storeTotals.indexOf(Math.min(...storeTotals));
+  const remainingArticles = familyGroups.reduce((s, g) => s + (ownedKeys[g.key] ? 0 : g.quantity), 0);
+  const ownedCount = familyGroups.filter((g) => ownedKeys[g.key]).length;
 
   /* ---------------------------------------------------------------
      RENDER
@@ -686,12 +693,20 @@ export default function App() {
           <div>
             <div className="flex items-center gap-4 mb-5">
               <div className="stamp font-hand text-lg font-bold rounded-full w-24 h-24 flex flex-col items-center justify-center shrink-0" style={{ background: "#fff" }}>
-                <span className="text-2xl leading-none">{totalArticles}</span>
-                <span className="text-[11px] -mt-0.5">articles</span>
+                <span className="text-2xl leading-none">{remainingArticles}</span>
+                <span className="text-[11px] -mt-0.5">à acheter</span>
               </div>
               <p className="text-sm" style={{ color: "#5B6B85" }}>
                 Liste consolidée pour <b>{children.map((c) => c.name).join(", ")}</b>. Les doublons entre matières et
                 entre enfants sont fusionnés — un seul passage par rayon.
+                {ownedCount > 0 && (
+                  <>
+                    {" "}
+                    <span style={{ color: "#3F9142" }}>
+                      {ownedCount} article{ownedCount > 1 ? "s" : ""} déjà à la maison ✓
+                    </span>
+                  </>
+                )}
               </p>
             </div>
 
@@ -705,35 +720,57 @@ export default function App() {
                       {g.category}
                     </h3>
                     <div className="rounded-xl bg-white border divide-y" style={{ borderColor: "#E4EAF0" }}>
-                      {g.items.map((it) => (
-                        <div key={it.key} className="flex items-center gap-3 px-4 py-3">
-                          <div className="font-mono text-sm font-semibold rounded-md px-2 py-1 shrink-0" style={{ background: "#F4F6F8", color: "#24324A" }}>
-                            ×{it.quantity}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate" style={{ color: "#24324A" }}>
-                              {it.name}
-                            </p>
-                            {it.format && (
-                              <p className="text-xs truncate" style={{ color: "#8B97A8" }}>
-                                {it.format}
-                              </p>
-                            )}
-                          </div>
-                          <div className="flex -space-x-1.5 shrink-0">
-                            {it.byChild.map((bc) => (
-                              <span
-                                key={bc.name}
-                                title={`${bc.name} : ${bc.qty}`}
-                                className="w-6 h-6 rounded-full border-2 border-white flex items-center justify-center text-[10px] font-bold text-white"
-                                style={{ background: bc.color }}
+                      {g.items.map((it) => {
+                        const owned = !!ownedKeys[it.key];
+                        return (
+                          <div
+                            key={it.key}
+                            className="flex items-center gap-3 px-4 py-3"
+                            style={{ opacity: owned ? 0.5 : 1 }}
+                          >
+                            <div className="font-mono text-sm font-semibold rounded-md px-2 py-1 shrink-0" style={{ background: "#F4F6F8", color: "#24324A" }}>
+                              ×{it.quantity}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p
+                                className="text-sm font-medium truncate"
+                                style={{ color: "#24324A", textDecoration: owned ? "line-through" : "none" }}
                               >
-                                {bc.name.charAt(0).toUpperCase()}
+                                {it.name}
+                              </p>
+                              {it.format && (
+                                <p className="text-xs truncate" style={{ color: "#8B97A8" }}>
+                                  {it.format}
+                                </p>
+                              )}
+                            </div>
+                            <div className="flex -space-x-1.5 shrink-0">
+                              {it.byChild.map((bc) => (
+                                <span
+                                  key={bc.name}
+                                  title={`${bc.name} : ${bc.qty}`}
+                                  className="w-6 h-6 rounded-full border-2 border-white flex items-center justify-center text-[10px] font-bold text-white"
+                                  style={{ background: bc.color }}
+                                >
+                                  {bc.name.charAt(0).toUpperCase()}
+                                </span>
+                              ))}
+                            </div>
+                            <label className="shrink-0 flex flex-col items-center gap-0.5 cursor-pointer select-none">
+                              <input
+                                type="checkbox"
+                                checked={owned}
+                                onChange={() => toggleOwned(it.key)}
+                                className="w-5 h-5 rounded"
+                                style={{ accentColor: "#3F9142" }}
+                              />
+                              <span className="text-[9px]" style={{ color: "#8B97A8" }}>
+                                à la maison
                               </span>
-                            ))}
+                            </label>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 ))}
@@ -813,10 +850,18 @@ export default function App() {
                         <div className="divide-y" style={{ borderColor: "#E4EAF0" }}>
                           {g.items.map((it) => {
                             const prices = getPrices(it);
+                            const owned = !!ownedKeys[it.key];
                             return (
-                              <div key={it.key} className="grid grid-cols-[1fr,repeat(3,64px)] gap-1 px-3 py-2 items-center">
+                              <div
+                                key={it.key}
+                                className="grid grid-cols-[1fr,repeat(3,64px)] gap-1 px-3 py-2 items-center"
+                                style={{ opacity: owned ? 0.4 : 1 }}
+                              >
                                 <div className="min-w-0">
-                                  <p className="text-sm truncate" style={{ color: "#24324A" }}>
+                                  <p
+                                    className="text-sm truncate"
+                                    style={{ color: "#24324A", textDecoration: owned ? "line-through" : "none" }}
+                                  >
                                     {it.name} <span className="font-mono text-xs" style={{ color: "#8B97A8" }}>×{it.quantity}</span>
                                   </p>
                                 </div>
@@ -826,6 +871,7 @@ export default function App() {
                                       type="number"
                                       step="0.1"
                                       value={p}
+                                      disabled={owned}
                                       onChange={(e) => setPrice(it.key, i, parseFloat(e.target.value) || 0)}
                                       className="font-mono text-xs text-right w-14 rounded-md border px-1 py-1 outline-none"
                                       style={{ borderColor: i === cheapestIdx ? "#3F9142" : "#E4EAF0" }}

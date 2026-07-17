@@ -128,7 +128,7 @@ async function extractItemsFromImage(base64, mediaType) {
   const response = await fetch("/api/extract", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ data: base64, mediaType }),
+    body: JSON.stringify({ files: [{ data: base64, mediaType }] }),
   });
   const data = await response.json();
   if (!response.ok) throw new Error(data.error || "Le service de lecture a répondu une erreur.");

@@ -230,10 +230,14 @@ export default function App() {
   const [pricesStatus, setPricesStatus] = useState("idle"); // idle | loading | done | error
   const [pricesUpdatedAt, setPricesUpdatedAt] = useState(null);
   const [ownedKeys, setOwnedKeys] = useState({}); // key -> true si déjà à la maison
+  const [cartKeys, setCartKeys] = useState({}); // key -> true si déjà mis dans le panier (pendant les courses)
   const fileInputRef = useRef(null);
 
   function toggleOwned(key) {
     setOwnedKeys((prev) => ({ ...prev, [key]: !prev[key] }));
+  }
+  function toggleCart(key) {
+    setCartKeys((prev) => ({ ...prev, [key]: !prev[key] }));
   }
 
   const activeChild = children.find((c) => c.id === activeChildId) || children[0];
@@ -435,6 +439,8 @@ export default function App() {
   const cheapestIdx = storeTotals.indexOf(Math.min(...storeTotals));
   const remainingArticles = familyGroups.reduce((s, g) => s + (ownedKeys[g.key] ? 0 : g.quantity), 0);
   const ownedCount = familyGroups.filter((g) => ownedKeys[g.key]).length;
+  const inCartCount = familyGroups.filter((g) => !ownedKeys[g.key] && cartKeys[g.key]).length;
+  const toBuyCount = familyGroups.filter((g) => !ownedKeys[g.key]).length;
 
   /* ---------------------------------------------------------------
      RENDER
@@ -707,6 +713,14 @@ export default function App() {
                     </span>
                   </>
                 )}
+                {toBuyCount > 0 && (
+                  <>
+                    {" "}
+                    <span style={{ color: "#4C8BF5" }}>
+                      {inCartCount}/{toBuyCount} dans le panier
+                    </span>
+                  </>
+                )}
               </p>
             </div>
 
@@ -722,11 +736,15 @@ export default function App() {
                     <div className="rounded-xl bg-white border divide-y" style={{ borderColor: "#E4EAF0" }}>
                       {g.items.map((it) => {
                         const owned = !!ownedKeys[it.key];
+                        const inCart = !!cartKeys[it.key];
                         return (
                           <div
                             key={it.key}
                             className="flex items-center gap-3 px-4 py-3"
-                            style={{ opacity: owned ? 0.5 : 1 }}
+                            style={{
+                              opacity: owned ? 0.5 : 1,
+                              background: !owned && inCart ? "#EAF5EC" : "transparent",
+                            }}
                           >
                             <div className="font-mono text-sm font-semibold rounded-md px-2 py-1 shrink-0" style={{ background: "#F4F6F8", color: "#24324A" }}>
                               ×{it.quantity}
@@ -734,7 +752,10 @@ export default function App() {
                             <div className="flex-1 min-w-0">
                               <p
                                 className="text-sm font-medium truncate"
-                                style={{ color: "#24324A", textDecoration: owned ? "line-through" : "none" }}
+                                style={{
+                                  color: "#24324A",
+                                  textDecoration: owned || inCart ? "line-through" : "none",
+                                }}
                               >
                                 {it.name}
                               </p>
@@ -768,6 +789,20 @@ export default function App() {
                                 à la maison
                               </span>
                             </label>
+                            {!owned && (
+                              <label className="shrink-0 flex flex-col items-center gap-0.5 cursor-pointer select-none">
+                                <input
+                                  type="checkbox"
+                                  checked={inCart}
+                                  onChange={() => toggleCart(it.key)}
+                                  className="w-5 h-5 rounded"
+                                  style={{ accentColor: "#4C8BF5" }}
+                                />
+                                <span className="text-[9px]" style={{ color: "#8B97A8" }}>
+                                  panier
+                                </span>
+                              </label>
+                            )}
                           </div>
                         );
                       })}
